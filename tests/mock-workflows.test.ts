@@ -38,6 +38,7 @@ describe("mock workflows", () => {
     expect(units).toHaveLength(4);
     expect(units[0].slug).toBe("pronunciation-foundations");
     expect(units[0].lessonCount).toBe(3);
+    expect(units[3].lessonCount).toBe(7);
     expect(units[3].vocabularyCount).toBeGreaterThan(0);
   });
 
@@ -49,8 +50,8 @@ describe("mock workflows", () => {
 
     expect(arabic.items.some((lesson) => lesson.slug === "alphabet-and-letter-sounds")).toBe(true);
     expect(german.items.some((lesson) => lesson.slug === "everyday-vocabulary-and-mini-dialogues")).toBe(true);
-    expect(paged.meta.total).toBe(12);
-    expect(paged.meta.totalPages).toBe(3);
+    expect(paged.meta.total).toBe(16);
+    expect(paged.meta.totalPages).toBe(4);
   });
 
   test("lesson detail works and unknown slug throws 404", async () => {
@@ -66,9 +67,10 @@ describe("mock workflows", () => {
 
   test("vocabulary and exercises endpoints return structured data", async () => {
     const lessonsApi = client().lessons;
-    const vocabulary = await lessonsApi.vocabulary("common-verbs");
-    const exercises = await lessonsApi.exercises("common-verbs");
+    const vocabulary = await lessonsApi.vocabulary("hotel-restaurant-and-service-requests");
+    const exercises = await lessonsApi.exercises("hotel-restaurant-and-service-requests");
     expect(vocabulary[0]).toMatchObject({ german: expect.any(String), transliterationAr: expect.any(String), meaningAr: expect.any(String) });
+    expect(vocabulary.some((item) => item.german === "Hotel" || item.german === "Zimmer")).toBe(true);
     expect(exercises).toHaveLength(3);
   });
 
@@ -134,10 +136,34 @@ describe("mock workflows", () => {
     expect(progress.completedLessons).toHaveLength(1);
     expect(progress.quizScores["lesson-01"].bestScore).toBe(100);
     expect(progress.quizScores["lesson-01"].attempts).toBe(2);
+    expect(progress.quizHistory).toHaveLength(2);
+    expect(progress.activityLog.some((entry) => entry.type === "quiz")).toBe(true);
+    expect(progress.startedAt).toEqual(expect.any(String));
+
+    window.localStorage.setItem(
+      "learngerman-progress-v1",
+      JSON.stringify({
+        version: 1,
+        completedLessons: ["lesson-01"],
+        quizScores: {
+          "lesson-01": {
+            bestScore: 100,
+            attempts: 2,
+            lastScore: 100,
+            lastAttemptAt: new Date().toISOString(),
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+    const migrated = await repo.get();
+    expect(migrated.quizHistory.length).toBeGreaterThan(0);
+    expect(migrated.activityLog.length).toBeGreaterThan(0);
 
     window.localStorage.setItem("learngerman-progress-v1", "not-json");
     const afterCorruption = await repo.get();
     expect(afterCorruption.completedLessons).toEqual([]);
+    expect(afterCorruption.quizHistory).toEqual([]);
   });
 
   test("lesson navigation works across units", async () => {
